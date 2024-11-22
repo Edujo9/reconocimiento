@@ -2,20 +2,20 @@ import os
 import cv2
 import face_recognition
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 
 # Crear la interfaz gráfica
 root = tk.Tk()
 root.title("Reconocimiento Facial")
-root.geometry("600x500")
+root.geometry("800x600")
 
 # Directorios de almacenamiento
-capturas_dir = "datos"
-if not os.path.exists("D:/Desktop/reco/datos"):
+capturas_dir = "capturas"
+if not os.path.exists(capturas_dir):
     os.makedirs(capturas_dir)
 
-# Variable para almacenar encodings
+# Variables para almacenar encodings
 rostros_encodings = []
 etiquetas = []
 
@@ -129,6 +129,49 @@ def reconocimiento_facial():
 
     actualizar_reconocimiento()
 
+# Reconocimiento facial en un video local
+def reconocimiento_video():
+    if not rostros_encodings:
+        messagebox.showerror("Error", "Primero debes entrenar el modelo.")
+        return
+
+    filepath = filedialog.askopenfilename(
+        title="Seleccionar Video",
+        filetypes=[("Archivos de Video", "*.mp4;*.avi;*.mov;*.mkv")]
+    )
+    if not filepath:
+        return
+
+    cam = cv2.VideoCapture(filepath)
+    while True:
+        ret, frame = cam.read()
+        if not ret:
+            break
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rostros = face_recognition.face_locations(rgb_frame)
+        encodings = face_recognition.face_encodings(rgb_frame, rostros)
+
+        for (top, right, bottom, left), encoding in zip(rostros, encodings):
+            coincidencias = face_recognition.compare_faces(rostros_encodings, encoding)
+            etiqueta = "Desconocido"
+
+            if True in coincidencias:
+                idx = coincidencias.index(True)
+                etiqueta = etiquetas[idx]
+
+            # Dibujar rectángulo y etiqueta
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+            cv2.putText(frame, etiqueta, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+        # Mostrar video
+        cv2.imshow("Reconocimiento en Video", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cam.release()
+    cv2.destroyAllWindows()
+
 # Botones de la interfaz
 btn_capturar = tk.Button(root, text="Capturar Imágenes", command=capturar_imagenes, width=20, height=2)
 btn_capturar.pack(pady=10)
@@ -138,6 +181,9 @@ btn_entrenar.pack(pady=10)
 
 btn_reconocer = tk.Button(root, text="Iniciar Reconocimiento", command=reconocimiento_facial, width=20, height=2)
 btn_reconocer.pack(pady=10)
+
+btn_video = tk.Button(root, text="Reconocer en Video", command=reconocimiento_video, width=20, height=2)
+btn_video.pack(pady=10)
 
 # Ejecutar la interfaz
 root.mainloop()

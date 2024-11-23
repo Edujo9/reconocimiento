@@ -11,7 +11,7 @@ root.title("Reconocimiento Facial")
 root.geometry("800x600")
 
 # Directorios de almacenamiento
-capturas_dir = "capturas"
+capturas_dir = "D:/Desktop/reco/datos"
 if not os.path.exists(capturas_dir):
     os.makedirs(capturas_dir)
 
@@ -135,6 +135,7 @@ def reconocimiento_video():
         messagebox.showerror("Error", "Primero debes entrenar el modelo.")
         return
 
+    # Seleccionar archivo de video
     filepath = filedialog.askopenfilename(
         title="Seleccionar Video",
         filetypes=[("Archivos de Video", "*.mp4;*.avi;*.mov;*.mkv")]
@@ -142,16 +143,40 @@ def reconocimiento_video():
     if not filepath:
         return
 
+    # Crear una nueva ventana para el video
+    ventana_video = tk.Toplevel(root)
+    ventana_video.title("Reconocimiento en Video")
+    ventana_video.geometry("800x600")
+
+    # Etiqueta para mostrar el video
+    label_video = tk.Label(ventana_video)
+    label_video.pack(fill="both", expand=True)
+
     cam = cv2.VideoCapture(filepath)
-    while True:
+    fps = cam.get(cv2.CAP_PROP_FPS)
+    intervalo = int(1000 / fps) if fps > 0 else 33
+
+    def cerrar_video():
+        """Libera la cámara y cierra la ventana de video."""
+        cam.release()
+        ventana_video.destroy()
+
+    # Vincula el botón de cierre a la liberación de la cámara
+    ventana_video.protocol("WM_DELETE_WINDOW", cerrar_video)
+
+    def procesar_video():
         ret, frame = cam.read()
         if not ret:
-            break
+            cerrar_video()
+            messagebox.showinfo("Video Finalizado", "Se completó el procesamiento del video.")
+            return
 
+        # Convertir frame a RGB para face_recognition
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rostros = face_recognition.face_locations(rgb_frame)
         encodings = face_recognition.face_encodings(rgb_frame, rostros)
 
+        # Detección y etiquetas
         for (top, right, bottom, left), encoding in zip(rostros, encodings):
             coincidencias = face_recognition.compare_faces(rostros_encodings, encoding)
             etiqueta = "Desconocido"
@@ -164,13 +189,26 @@ def reconocimiento_video():
             cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
             cv2.putText(frame, etiqueta, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-        # Mostrar video
-        cv2.imshow("Reconocimiento en Video", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        # Obtener dimensiones actuales de la ventana
+        ventana_width = ventana_video.winfo_width()
+        ventana_height = ventana_video.winfo_height()
 
-    cam.release()
-    cv2.destroyAllWindows()
+        # Redimensionar el frame al tamaño de la ventana
+        frame = cv2.resize(frame, (ventana_width, ventana_height))
+
+        # Convertir frame a formato ImageTk
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        imgtk = ImageTk.PhotoImage(image=img)
+        label_video.imgtk = imgtk
+        label_video.config(image=imgtk)
+
+        # Procesar el siguiente fotograma
+        ventana_video.after(intervalo, procesar_video)
+
+    procesar_video()
+
+
+
 
 # Botones de la interfaz
 btn_capturar = tk.Button(root, text="Capturar Imágenes", command=capturar_imagenes, width=20, height=2)

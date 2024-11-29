@@ -4,6 +4,7 @@ import face_recognition
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
+from sklearn.metrics import classification_report
 
 # Crear la interfaz gráfica
 root = tk.Tk()
@@ -207,6 +208,44 @@ def reconocimiento_video():
 
     procesar_video()
 
+def evaluar_modelo():
+    if not rostros_encodings:
+        messagebox.showerror("Error", "Primero debes entrenar el modelo.")
+        return
+
+    directorio = filedialog.askdirectory(title="Seleccionar directorio de prueba")
+    if not directorio:
+        return
+
+    y_true = []
+    y_pred = []
+
+    for etiqueta in os.listdir(directorio):
+        carpeta = os.path.join(directorio, etiqueta)
+        if not os.path.isdir(carpeta):
+            continue
+
+        for imagen_nombre in os.listdir(carpeta):
+            imagen_path = os.path.join(carpeta, imagen_nombre)
+            imagen = face_recognition.load_image_file(imagen_path)
+            rostros = face_recognition.face_locations(imagen)
+            encodings = face_recognition.face_encodings(imagen, rostros)
+
+            for encoding in encodings:
+                coincidencias = face_recognition.compare_faces(rostros_encodings, encoding)
+                prediccion = "Desconocido"
+
+                if True in coincidencias:
+                    idx = coincidencias.index(True)
+                    prediccion = etiquetas[idx]
+
+                y_true.append(etiqueta)
+                y_pred.append(prediccion)
+
+    # Generar reporte de métricas
+    reporte = classification_report(y_true, y_pred, zero_division=0)
+    print("Reporte de métricas:\n", reporte)
+    messagebox.showinfo("Métricas", f"Reporte generado. Consulta la consola para más detalles.")
 
 
 
@@ -222,6 +261,9 @@ btn_reconocer.pack(pady=10)
 
 btn_video = tk.Button(root, text="Reconocer en Video", command=reconocimiento_video, width=20, height=2)
 btn_video.pack(pady=10)
+
+btn_evaluar = tk.Button(root, text="Evaluar Modelo", command=evaluar_modelo, width=20, height=2)
+btn_evaluar.pack(pady=10)
 
 # Ejecutar la interfaz
 root.mainloop()

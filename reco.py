@@ -220,7 +220,7 @@ def evaluar_modelo():
         return
 
     # Directorio de salida para guardar imágenes etiquetadas
-    directorio_salida = os.path.join(directorio, "resultado_etiquetado")
+    directorio_salida = os.path.join("D:/Desktop/reco/", "resultado_etiquetado")
     os.makedirs(directorio_salida, exist_ok=True)
 
     y_true = []

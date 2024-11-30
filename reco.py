@@ -209,6 +209,8 @@ def reconocimiento_video():
     procesar_video()
 
 def evaluar_modelo():
+    global rostros_encodings, etiquetas
+
     if not rostros_encodings:
         messagebox.showerror("Error", "Primero debes entrenar el modelo.")
         return
@@ -216,6 +218,10 @@ def evaluar_modelo():
     directorio = filedialog.askdirectory(title="Seleccionar directorio de prueba")
     if not directorio:
         return
+
+    # Directorio de salida para guardar imágenes etiquetadas
+    directorio_salida = os.path.join(directorio, "resultado_etiquetado")
+    os.makedirs(directorio_salida, exist_ok=True)
 
     y_true = []
     y_pred = []
@@ -227,25 +233,53 @@ def evaluar_modelo():
 
         for imagen_nombre in os.listdir(carpeta):
             imagen_path = os.path.join(carpeta, imagen_nombre)
-            imagen = face_recognition.load_image_file(imagen_path)
-            rostros = face_recognition.face_locations(imagen)
-            encodings = face_recognition.face_encodings(imagen, rostros)
 
-            for encoding in encodings:
-                coincidencias = face_recognition.compare_faces(rostros_encodings, encoding)
-                prediccion = "Desconocido"
+            try:
+                imagen = face_recognition.load_image_file(imagen_path)
+                rostros = face_recognition.face_locations(imagen)
+                encodings = face_recognition.face_encodings(imagen, rostros)
 
-                if True in coincidencias:
-                    idx = coincidencias.index(True)
-                    prediccion = etiquetas[idx]
+                # Convertir la imagen a formato BGR para dibujar con OpenCV
+                imagen_bgr = cv2.cvtColor(imagen, cv2.COLOR_RGB2BGR)
 
-                y_true.append(etiqueta)
-                y_pred.append(prediccion)
+                if not encodings:
+                    print(f"No se detectaron rostros en {imagen_nombre}")
+                    continue
+
+                for rostro, encoding in zip(rostros, encodings):
+                    coincidencias = face_recognition.compare_faces(rostros_encodings, encoding)
+                    prediccion = "Desconocido"
+
+                    if True in coincidencias:
+                        idx = coincidencias.index(True)
+                        prediccion = etiquetas[idx]
+
+                    # Añadir resultados al conjunto de métricas
+                    y_true.append(etiqueta)
+                    y_pred.append(prediccion)
+
+                    # Dibujar el cuadro y la etiqueta en la imagen
+                    top, right, bottom, left = rostro
+                    cv2.rectangle(imagen_bgr, (left, top), (right, bottom), (0, 255, 0), 2)
+                    cv2.putText(imagen_bgr, prediccion, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+                # Guardar la imagen etiquetada
+                salida_path = os.path.join(directorio_salida, f"etiquetada_{imagen_nombre}")
+                cv2.imwrite(salida_path, imagen_bgr)
+
+            except Exception as e:
+                print(f"Error al procesar {imagen_nombre}: {e}")
+
+    # Validar que las listas no estén vacías antes de generar métricas
+    if not y_true or not y_pred:
+        messagebox.showerror("Error", "No se pudieron calcular métricas: conjunto de prueba vacío o sin detecciones.")
+        return
 
     # Generar reporte de métricas
     reporte = classification_report(y_true, y_pred, zero_division=0)
     print("Reporte de métricas:\n", reporte)
     messagebox.showinfo("Métricas", f"Reporte generado. Consulta la consola para más detalles.")
+    messagebox.showinfo("Etiquetas", f"Las imágenes etiquetadas se guardaron en: {directorio_salida}")
 
 
 
